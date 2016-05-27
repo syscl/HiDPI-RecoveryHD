@@ -144,6 +144,73 @@ function _del()
 #--------------------------------------------------------------------------------
 #
 
+function _getEDID()
+{
+    #
+    # Whether the Intel Graphics kernel extensions are loaded in cache?
+    #
+    if [[ `kextstat` == *"Azul"* && `kextstat` == *"HD5000"* ]];
+      then
+        #
+        # Yes. Then we can directly assess EDID from ioreg.
+        #
+        # Get raw EDID.
+        #
+        gEDID=$(ioreg -lw0 | grep -i "IODisplayEDID" | sed -e 's/.*<//' -e 's/>//')
+
+        #
+        # Get native resolution(Rez) from $gEDID.
+        #
+        # Get horizontal resolution. Arrays start from 0.
+        #
+        gHorizontalRez_pr=${gEDID:116:1}
+        gHorizontalRez_st=${gEDID:112:2}
+        gHorizontalRez=$((0x$gHorizontalRez_pr$gHorizontalRez_st))
+
+        #
+        # Get vertical resolution. Actually, Vertical rez is no more needed in this scenario, but we just use this to make the
+        # progress clear.
+        #
+        gVerticalRez_pr=${gEDID:122:1}
+        gVerticalRez_st=${gEDID:118:2}
+        gVerticalRez=$((0x$gVerticalRez_pr$gVerticalRez_st))
+      else
+        #
+        # No, we cannot assess EDID from ioreg. But now the resolution of current display has been forced to the highest resolution as vendor designed.
+        #
+        gSystemRez=$(system_profiler SPDisplaysDataType | grep -i "Resolution" | sed -e 's/.*://')
+        gSystemHorizontalRez=$(echo $gSystemRez | sed -e 's/x.*//')
+        gSystemVerticalRez=$(echo $gSystemRez | sed -e 's/.*x//')
+    fi
+
+    #
+    # Patch IOKit?
+    #
+    if [[ $gHorizontalRez -gt 1920 || $gSystemHorizontalRez -gt 1920 ]];
+      then
+        #
+        # Yes, We indeed require a patch to unlock the limitation of flash rate of IOKit to power up the QHD+/4K display.
+        #
+        # Note: the argument of gPatchIOKit is set to 0 as default if the examination of resolution fail, this argument can ensure all models being powered up.
+        #
+        gPatchIOKit=0
+      else
+        #
+        # No, patch IOKit is not required, we won't touch IOKit(for a more intergration/clean system since less is more).
+        #
+        gPatchIOKit=1
+    fi
+
+    #
+    # Passing gPatchIOKit to gPatchRecoveryHD.
+    #
+    gPatchRecoveryHD=${gPatchIOKit}
+}
+
+#
+#--------------------------------------------------------------------------------
+#
+
 function _recoveryhd_fix()
 {
     #
@@ -232,6 +299,25 @@ function _recoveryhd_fix()
 
 function main()
 {
+    #
+    # Check if the patch is necessary, since less is more.
+    #
+    _getEDID
+
+    if [ $gPatchRecoveryHD -eq 1 ];
+      then
+        #
+        # No, patch is no need on your PC. Patch whatsover?
+        #
+        read -p "Patch Recovery HD on your PC is no need. Do you want to continue (y/n)? " unsupportedConfirmed
+        case "$unsupportedConfirmed" in
+              y|Y) return
+              ;;
+              *) exit 1
+              ;;
+        esac
+    fi
+
     #
     # Get argument.
     #
