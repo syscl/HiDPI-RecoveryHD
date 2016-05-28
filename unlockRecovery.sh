@@ -2,7 +2,7 @@
 
 #
 # syscl/Yating Zhou/lighting from bbs.PCBeta.com
-# Merge for Dell Precision M3800 and XPS15 (9530).
+# Unlock HiDPI limitation for Recovery HD.
 #
 
 #================================= GLOBAL VARS ==================================
@@ -184,9 +184,9 @@ function _getEDID()
     fi
 
     #
-    # Patch IOKit?
+    # Patch IOKit? (2880x1800 = rMBP 15')
     #
-    if [[ $gHorizontalRez -gt 1920 || $gSystemHorizontalRez -gt 1920 ]];
+    if [[ $gHorizontalRez -gt 2880 || $gSystemHorizontalRez -gt 2880 ]];
       then
         #
         # Yes, We indeed require a patch to unlock the limitation of flash rate of IOKit to power up the QHD+/4K display.
