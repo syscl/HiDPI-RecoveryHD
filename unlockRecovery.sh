@@ -46,6 +46,7 @@ config_plist="/Volumes/EFI/EFI/CLOVER/config.plist"
 #
 gArgv=""
 gDebug=1
+gRecoveryHD_DMG="/Volumes/Recovery HD/com.apple.recovery.boot/BaseSystem.dmg"
 gBak_Time=$(date +%Y-%m-%d-h%H_%M_%S)
 gBak_Dir="${REPO}/Backups/${gBak_Time}"
 
@@ -144,6 +145,61 @@ function _del()
 #--------------------------------------------------------------------------------
 #
 
+function _printBackupLOG()
+{
+    local gDAY="${gBak_Time:5:2}/${gBak_Time:8:2}/${gBak_Time:0:4}"
+    local gTIME="${gBak_Time:12:2}:${gBak_Time:15:2}:${gBak_Time:18:2}"
+    local gBackupLOG=$(echo "${gBak_Dir}/BackupLOG.txt")
+
+    #
+    # Print Header.
+    #
+    echo "  Backup Recovery HD(BaseSystem.dmg)"                                                   > "${gBackupLOG}"
+    echo ''                                                                                       >>"${gBackupLOG}"
+    echo "  DATE:                     $gDAY"                                                      >>"${gBackupLOG}"
+    echo "  TIME:                     $gTIME"                                                     >>"${gBackupLOG}"
+    local gRecentFileMD5=$(md5 -q "${gBak_BaseSystem}")
+    echo "  Origin Recovery HD MD5:   ${gRecentFileMD5}"                                          >>"${gBackupLOG}"
+    local gPatchedFileMD5=$(md5 -q "${gBaseSystem_PATCH}")
+    echo "  Patched Recovery HD MD5:  ${gPatchedFileMD5}"                                         >>"${gBackupLOG}"
+    echo ''                                                                                       >>"${gBackupLOG}"
+}
+
+#
+#--------------------------------------------------------------------------------
+#
+
+function _bakBaseSystem()
+{
+    gLastOpenedFileMD5=$(md5 -q "${gRecoveryHD_DMG}")
+
+    if [ -d "${REPO}/Backups" ];
+      then
+        if [[ `ls ${REPO}/Backups/*` == *'.txt'* ]];
+          then
+            gBakFileNames=($(ls ${REPO}/Backups/*/*.txt))
+        fi
+    fi
+
+    if [[ "${#gBakFileNames[@]}" -gt 0 ]];
+      then
+        gBakFileMD5=($(cat ${gBakFileNames[@]} | grep 'Patched Recovery HD MD5:' | sed -e 's/.*: //' -e 's/ //'))
+        for checksum in "${gBakFileMD5[@]}"
+        do
+          if [[ $checksum == $gLastOpenedFileMD5 ]];
+            then
+              _PRINT_MSG "OK: Backup found. No more patch operations need"
+              exit -0
+          fi
+        done
+    fi
+
+}
+
+#
+#--------------------------------------------------------------------------------
+#
+
 function _getEDID()
 {
     #
@@ -214,6 +270,42 @@ function _getEDID()
 function _recoveryhd_fix()
 {
     #
+    # Mount Recovery HD.
+    #
+    local gRecoveryHD=""
+    local gMountPoint="/tmp/RecoveryHD"
+    local gBaseSystem_RW="/tmp/BaseSystem_RW.dmg"
+    local gBaseSystem_PATCH="/tmp/BaseSystem_PATCHED.dmg"
+    diskutil list
+    printf "Enter ${RED}Recovery HD's ${OFF}IDENTIFIER, e.g. ${BOLD}disk0s3${OFF}"
+    read -p ": " gRecoveryHD
+    _tidy_exec "diskutil mount ${gRecoveryHD}" "Mount ${gRecoveryHD}"
+    _touch "${gMountPoint}"
+
+    #
+    # Gain origin file format(e.g. UDZO...).
+    #
+    local gBaseSystem_FS=$(hdiutil imageinfo "${gRecoveryHD_DMG}" | grep -i "Format:" | sed -e 's/.*://' -e 's/ //')
+    local gTarget_FS=$(echo 'UDRW')
+
+    #
+    # Backup origin BaseSystem.dmg to ${REPO}/Backups/.
+    #
+    _bakBaseSystem
+    _touch "${gBak_Dir}"
+    cp "${gRecoveryHD_DMG}" "${gBak_Dir}"
+    gBak_BaseSystem="${gBak_Dir}/BaseSystem.dmg"
+    chflags nohidden "${gBak_BaseSystem}"
+
+    #
+    # Mount esp.
+    #
+    diskutil list
+    printf "Enter ${RED}EFI's${OFF} IDENTIFIER, e.g. ${BOLD}disk0s1${OFF}"
+    read -p ": " gEFI
+    _tidy_exec "diskutil mount ${gEFI}" "Mount ${gEFI}"
+
+    #
     # Fixed RecoveryHD issues (c) syscl.
     #
     # Check BooterConfig = 0x2A.
@@ -241,34 +333,6 @@ function _recoveryhd_fix()
     fi
 
     #
-    # Mount Recovery HD.
-    #
-    local gRecoveryHD=""
-    local gMountPoint="/tmp/RecoveryHD"
-    local gBaseSystem_RW="/tmp/BaseSystem_RW.dmg"
-    local gRecoveryHD_DMG="/Volumes/Recovery HD/com.apple.recovery.boot/BaseSystem.dmg"
-    local gBaseSystem_PATCH="/tmp/BaseSystem_PATCHED.dmg"
-    diskutil list
-    printf "Enter ${RED}Recovery HD's ${OFF}IDENTIFIER, e.g. ${BOLD}disk0s3${OFF}"
-    read -p ": " gRecoveryHD
-    _tidy_exec "diskutil mount ${gRecoveryHD}" "Mount ${gRecoveryHD}"
-    _touch "${gMountPoint}"
-
-    #
-    # Gain origin file format(e.g. UDZO...).
-    #
-    local gBaseSystem_FS=$(hdiutil imageinfo "${gRecoveryHD_DMG}" | grep -i "Format:" | sed -e 's/.*://' -e 's/ //')
-    local gTarget_FS=$(echo 'UDRW')
-
-    #
-    # Backup origin BaseSystem.dmg to ${REPO}/Backups/.
-    #
-    _touch "${gBak_Dir}"
-    cp "${gRecoveryHD_DMG}" "${gBak_Dir}/"
-    local gBak_BaseSystem="${gBak_Dir}/BaseSystem.dmg"
-    chflags nohidden "${gBak_BaseSystem}"
-
-    #
     # Start to override.
     #
     _PRINT_MSG "--->: ${BLUE}Convert ${gBaseSystem_FS}(r/o) to ${gTarget_FS}(r/w) ...${OFF}"
@@ -285,6 +349,7 @@ function _recoveryhd_fix()
     _PRINT_MSG "--->: ${BLUE}Unlocking pixel clock for Recovery HD ...${OFF}"
     cp ${gBaseSystem_PATCH} "${gRecoveryHD_DMG}"
     chflags hidden "${gRecoveryHD_DMG}"
+    _printBackupLOG
 
     #
     # Clean redundant dmg files.
@@ -335,14 +400,6 @@ function main()
         #
         gDebug=1
     fi
-
-    #
-    # Mount esp.
-    #
-    diskutil list
-    printf "Enter ${RED}EFI's${OFF} IDENTIFIER, e.g. ${BOLD}disk0s1${OFF}"
-    read -p ": " gEFI
-    _tidy_exec "diskutil mount ${gEFI}" "Mount ${gEFI}"
 
     #
     # Fixed UHD/QHD+ Recovery HD entering issues (c) syscl.

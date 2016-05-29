@@ -36,6 +36,9 @@ Reboot.
 
 Change Log
 ----------------
+2016-5-29
+
+- Added Backup checksum detection to prevent too many backup files being created.
 
 2016-5-28
 
