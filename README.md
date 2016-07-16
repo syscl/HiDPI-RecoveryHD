@@ -36,6 +36,10 @@ Reboot.
 
 Change Log
 ----------------
+2016-7-16
+
+- Added macOS Sierra support: new pixel unlock.
+
 2016-5-29
 
 - Added Backup checksum detection to prevent too many backup files being created.
