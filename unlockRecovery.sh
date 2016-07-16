@@ -49,6 +49,11 @@ gDebug=1
 gRecoveryHD_DMG="/Volumes/Recovery HD/com.apple.recovery.boot/BaseSystem.dmg"
 gBak_Time=$(date +%Y-%m-%d-h%H_%M_%S)
 gBak_Dir="${REPO}/Backups/${gBak_Time}"
+#
+# Gain Product ver and OS ver
+#
+gProductVer="$(sw_vers -productVersion)"
+gOSVer=${gProductVer:3:2}
 
 #
 #--------------------------------------------------------------------------------
@@ -338,8 +343,7 @@ function _recoveryhd_fix()
     _PRINT_MSG "--->: ${BLUE}Convert ${gBaseSystem_FS}(r/o) to ${gTarget_FS}(r/w) ...${OFF}"
     _tidy_exec "hdiutil convert "${gBak_BaseSystem}" -format ${gTarget_FS} -o ${gBaseSystem_RW} -quiet" "Convert ${gBaseSystem_FS}(r/o) to ${gTarget_FS}(r/w)"
     _tidy_exec "hdiutil attach "${gBaseSystem_RW}" -nobrowse -quiet -readwrite -noverify -mountpoint ${gMountPoint}" "Attach Recovery HD"
-    sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit
-    _tidy_exec "sudo codesign -f -s - $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit" "Sign IOKit for Recovery HD"
+    _unlock_pixel_clock
     _tidy_exec "hdiutil detach $gMountPoint" "Detach mountpoint"
     #
     # Convert to origin format.
@@ -356,6 +360,30 @@ function _recoveryhd_fix()
     #
     _tidy_exec "rm $gBaseSystem_RW $gBaseSystem_PATCH" "Clean redundant dmg files"
     _tidy_exec "diskutil unmount ${gRecoveryHD}" "Unmount ${gRecoveryHD}"
+}
+
+#
+#--------------------------------------------------------------------------------
+#
+
+function _unlock_pixel_clock()
+{
+    let gDelimitation_OSVer=12
+
+    if [ $gOSVer -ge $gDelimitation_OSVer ];
+      then
+        #
+        # 10.12+
+        #
+        sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' $gMountPoint/System/Library/Frameworks/CoreDisplay.framework/Versions/Current/CoreDisplay
+        _tidy_exec "sudo codesign -f -s - $gMountPoint/System/Library/Frameworks/CoreDisplay.framework/Versions/Current/CoreDisplay" "Sign CoreDisplay for Recovery HD"
+      else
+        #
+        # 10.12-
+        #
+        sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit
+        _tidy_exec "sudo codesign -f -s - $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit" "Sign IOKit for Recovery HD"
+    fi
 }
 
 #
