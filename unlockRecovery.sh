@@ -30,6 +30,13 @@ BLUE="\033[1;34m"
 OFF="\033[m"
 
 #
+# Define two status: 0 - Success, Turn on,
+#                    1 - Failure, Turn off
+#
+kBASHReturnSuccess=0
+kBASHReturnFailure=1
+
+#
 # Located repository.
 #
 REPO=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -45,7 +52,7 @@ config_plist="/Volumes/EFI/EFI/CLOVER/config.plist"
 # Gvariables stands for getting datas from OS X.
 #
 gArgv=""
-gDebug=1
+gDebug=${kBASHReturnFailure}
 gRecoveryHD_DMG="/Volumes/Recovery HD/com.apple.recovery.boot/BaseSystem.dmg"
 gBak_Time=$(date +%Y-%m-%d-h%H_%M_%S)
 gBak_Dir="${REPO}/Backups/${gBak_Time}"
@@ -375,15 +382,15 @@ function _unlock_pixel_clock()
         #
         # 10.12+
         #
-        sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' $gMountPoint/System/Library/Frameworks/CoreDisplay.framework/Versions/Current/CoreDisplay
-        _tidy_exec "sudo codesign -f -s - $gMountPoint/System/Library/Frameworks/CoreDisplay.framework/Versions/Current/CoreDisplay" "Sign CoreDisplay for Recovery HD"
+        gTarget_rhd_Framework="$gMountPoint/System/Library/Frameworks/CoreDisplay.framework/Versions/Current/CoreDisplay"
       else
         #
         # 10.12-
         #
-        sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit
-        _tidy_exec "sudo codesign -f -s - $gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit" "Sign IOKit for Recovery HD"
+        gTarget_rhd_Framework="$gMountPoint/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit"
     fi
+    sudo perl -i.bak -pe 's|\xB8\x01\x00\x00\x00\xF6\xC1\x01\x0F\x85|\x33\xC0\x90\x90\x90\x90\x90\x90\x90\xE9|sg' ${gTarget_rhd_Framework}
+    _tidy_exec "sudo codesign -f -s - ${gTarget_rhd_Framework}" "Patch and sign framework for Recovery HD"
 }
 
 #
