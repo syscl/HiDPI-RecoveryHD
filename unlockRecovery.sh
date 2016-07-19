@@ -60,7 +60,7 @@ gBak_Dir="${REPO}/Backups/${gBak_Time}"
 # Gain Product ver and OS ver
 #
 gProductVer="$(sw_vers -productVersion)"
-gOSVer=${gProductVer:3:2}
+gMINOR_VER=${gProductVer:3:2}
 
 #
 #--------------------------------------------------------------------------------
@@ -377,7 +377,7 @@ function _unlock_pixel_clock()
 {
     let gDelimitation_OSVer=12
 
-    if [ $gOSVer -ge $gDelimitation_OSVer ];
+    if [ $gMINOR_VER -ge $gDelimitation_OSVer ];
       then
         #
         # 10.12+
