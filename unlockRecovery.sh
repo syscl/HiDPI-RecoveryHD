@@ -9,7 +9,7 @@
 
 #
 # The script expects '0.5' but non-US localizations use '0,5' so we export
-# LC_NUMERIC here (for the duration of the deploy.sh) to prevent errors.
+# LC_NUMERIC here (for the duration of the unlockRecovery.sh) to prevent errors.
 #
 export LC_NUMERIC="en_US.UTF-8"
 
@@ -399,6 +399,18 @@ function _unlock_pixel_clock()
 
 function main()
 {
+    #
+    # syscl   - Just in case if someone simply copy M3800 instead of `git clone` it.
+    #
+    # PMheart - We should make a detection for Command Line Tools. If no CLT available, we should install it.
+    #
+    if [ ! -x /usr/bin/make ];
+      then
+        _PRINT_MSG "NOTE: ${RED}Xcode Command Line Tools from Apple not found!${OFF}"
+        _tidy_exec "xcode-select --install" "Install Xcode Command Line Tools"
+        exit 1
+    fi
+
     #
     # Check if the patch is necessary, since less is more.
     #
